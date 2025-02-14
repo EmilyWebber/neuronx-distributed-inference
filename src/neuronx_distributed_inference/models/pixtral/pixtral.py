@@ -424,23 +424,7 @@ def apply_rotary_emb_vit(
 
 
 
-class Transformer(nn.Module):
 
-    def __init__(self, args: VisionEncoderArgs):
-        super().__init__()
-        self.layers = torch.nn.ModuleList()
-        for _ in range(args.num_hidden_layers):
-            self.layers.append(TransformerBlock(args))
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        mask: torch.Tensor,
-        freqs_cis: Optional[torch.Tensor],
-    ) -> torch.Tensor:
-        for layer in self.layers:
-            x = layer(x, mask=mask, freqs_cis=freqs_cis)
-        return x
 
 
 def position_meshgrid(patch_embeds_list: List[torch.Tensor], ) -> torch.Tensor:
