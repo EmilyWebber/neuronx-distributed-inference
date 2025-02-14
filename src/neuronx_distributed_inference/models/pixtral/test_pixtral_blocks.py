@@ -39,8 +39,10 @@ params = {
   }
 }
 
-def test_all_obj_builds(vision_args):
+def test_all_obj_builds(params):
     print ('Testing out the builds')
+
+    vision_args = VisionEncoderArgs(**params['vision_encoder'])
 
     ff = FeedForward(vision_args)
 
@@ -56,10 +58,11 @@ def test_all_obj_builds(vision_args):
 
     # pixtral = PixtralForConditionalGeneration()
     
-    print ('Success!')
+    print ('Success on the builds!')
 
-if __name__ == "__main__":
+def test_configs(params):
 
+    print ('Testing the configs')
     batch_size = 1
     num_img_per_prompt = 1
     max_context_length = 1024
@@ -77,12 +80,16 @@ if __name__ == "__main__":
         async_mode=False,
     )
 
-
     vision_args = VisionEncoderArgs(**params['vision_encoder'])
+    
+    pixtral_config = PixtralInferenceConfig(neuron_config, params)
 
+    print ('Success on the configs!')
     
-    # pixtral_config = PixtralInferenceConfig(neuron_config = neuron_config, **params)
-    
+if __name__ == "__main__":
+    test_configs(params)
+
+    test_all_obj_builds(params)
 
 
     
