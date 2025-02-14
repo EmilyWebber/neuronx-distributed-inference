@@ -1,3 +1,16 @@
+from pixtral_utils import (VisionEncoderArgs,
+                            FeedForward,
+                            Attention,
+                            TransformerBlock,
+                            Transformer,
+                            VisionTransformer,
+                            VisionLanguageAdapter
+                            )
+
+from vllm.inputs import INPUT_REGISTRY, InputContext
+
+from typing import List, Optional, Tuple, Type, Union, Iterable, List, Mapping, Set
+
 
 
 def get_max_pixtral_image_tokens(ctx: InputContext):
@@ -130,12 +143,7 @@ def input_processor_for_pixtral(ctx: InputContext, inputs: DecoderOnlyInputs):
                         multi_modal_placeholders={"image": placeholder_ranges})
 
 
-@MULTIMODAL_REGISTRY.register_image_input_mapper(input_mapper_for_pixtral)
-@MULTIMODAL_REGISTRY.register_max_image_tokens(get_max_pixtral_image_tokens)
-@INPUT_REGISTRY.register_dummy_data(dummy_data_for_pixtral)
-@INPUT_REGISTRY.register_input_processor(input_processor_for_pixtral)
-class PixtralForConditionalGeneration(nn.Module, SupportsMultiModal,
-                                      SupportsPP):
+class PixtralForConditionalGeneration(nn.Module):
 
     def __init__(self, *, vllm_config: VllmConfig, prefix: str = ""):
         super().__init__()
