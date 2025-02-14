@@ -6,7 +6,7 @@ from transformers import AutoTokenizer, GenerationConfig
 
 from neuronx_distributed_inference.models.config import MultimodalVisionNeuronConfig, OnDeviceSamplingConfig
 
-
+from neuronx_distributed_inference.utils.hf_adapter import load_pretrained_config
 
 if __name__ == "__main__":
     print ('Now we will test imports and builds on key Pixtral building blocks')
@@ -26,9 +26,7 @@ if __name__ == "__main__":
     }
     generation_config.update(**generation_config_kwargs)
 
-    on_device_sampling_config=OnDeviceSamplingConfig(
-                                                     dynamic=True, 
-                                                     )
+    on_device_sampling_config=OnDeviceSamplingConfig(dynamic=True)
 
     neuron_config = MultimodalVisionNeuronConfig(
         tp_degree=32,
@@ -40,4 +38,9 @@ if __name__ == "__main__":
         sequence_parallel_enabled=False,
         fused_qkv=False,
         async_mode=False,
+    )
+
+    config = PixtralInferenceConfig(
+        neuron_config,
+        load_config=load_pretrained_config(model_path),
     )

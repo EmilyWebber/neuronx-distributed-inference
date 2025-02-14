@@ -104,6 +104,10 @@ try:
 except ImportError:
     USE_XFORMERS_OPS = False
 
+HF_CHECKPOINT = "HF"
+META_CHECKPOINT = "META"
+
+
 def get_rmsnorm_cls():
     # Initialize to the appropriate implementation of RMSNorm
     # If infer on NXD -> CustomRMSNorm
@@ -119,7 +123,6 @@ class PixtralInferenceConfig(InferenceConfig):
 
         assert self.checkpoint in [
             HF_CHECKPOINT,
-            META_CHECKPOINT,
         ], f"Uknown checkpoint: {self.checkpoint}"
 
         if hasattr(self, "text_config"):
@@ -888,11 +891,7 @@ class NeuronPixtralForConditionalGeneration(NeuronBaseForCausalLM):
             from .hf_state_dict_conversion import convert_hf_state_dict_to_neuron_state_dict
 
             return convert_hf_state_dict_to_neuron_state_dict(state_dict, inference_config)
-        elif inference_config.checkpoint == META_CHECKPOINT:
-            from .meta_state_dict_conversion import convert_meta_state_dict_to_neuron_state_dict
-
-            return convert_meta_state_dict_to_neuron_state_dict(state_dict, inference_config)
-
+        
     def get_model_wrapper_cls(self):
         return ModelWrapperMllama
 
