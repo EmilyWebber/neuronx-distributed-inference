@@ -115,3 +115,88 @@ class Transformer(nn.Module):
         for layer in self.layers:
             x = layer(x, mask=mask, freqs_cis=freqs_cis)
         return x
+
+   
+class VisionTransformer(nn.Module):
+
+    def __init__(self, args: VisionEncoderArgs):
+        super().__init__()
+        self.args = args
+        self.patch_conv = nn.Conv2d(
+            in_channels=args.num_channels,
+            out_channels=args.hidden_size,
+            kernel_size=args.patch_size,
+            stride=args.patch_size,
+            bias=False,
+        )
+        self.ln_pre = RMSNorm(args.hidden_size, eps=1e-5)
+        self.transformer = Transformer(args)
+
+        head_dim = self.args.hidden_size // self.args.num_attention_heads
+        assert head_dim % 2 == 0, "ROPE requires even head_dim"
+        self._freqs_cis: Optional[torch.Tensor] = None
+
+    @property
+    def max_patches_per_side(self) -> int:
+        return self.args.image_size // self.args.patch_size
+
+    @property
+    def device(self) -> torch.types.Device:
+        return next(self.parameters()).device
+
+    @property
+    def dtype(self) -> torch.dtype:
+        return next(self.parameters()).dtype
+
+    @property
+    def freqs_cis(self) -> torch.Tensor:
+        if self._freqs_cis is None:
+            self._freqs_cis = precompute_freqs_cis_2d(
+                dim=self.args.hidden_size // self.args.num_attention_heads,
+                height=self.max_patches_per_side,
+                width=self.max_patches_per_side,
+                theta=self.args.rope_theta,
+            )
+
+        if self._freqs_cis.device != self.device:
+            self._freqs_cis = self._freqs_cis.to(device=self.device)
+
+        return self._freqs_cis
+
+    def forward(
+        self,
+        images: List[torch.Tensor],
+    ) -> torch.Tensor:
+        """
+        Args:
+            images: list of N_img images of variable sizes, 
+                each of shape (C, H, W)
+        Returns:
+            image_features: tensor of token features for 
+                all tokens of all images of shape (N_toks, D)
+        """
+        # pass images through initial convolution independently
+        patch_embeds_list = [
+            self.patch_conv(img.unsqueeze(0).to(self.dtype)) for img in images
+        ]
+
+        # flatten to a single sequence
+        patch_embeds = torch.cat(
+            [p.flatten(2).permute(0, 2, 1) for p in patch_embeds_list], dim=1)
+        patch_embeds = self.ln_pre(patch_embeds)
+
+        # positional embeddings
+        positions = position_meshgrid(patch_embeds_list).to(self.device)
+        freqs_cis = self.freqs_cis[positions[:, 0], positions[:, 1]]
+
+        # pass through Transformer with a block diagonal mask delimiting images
+        if USE_XFORMERS_OPS:
+            mask = xops.fmha.attn_bias.BlockDiagonalMask.from_seqlens(
+                [p.shape[-2] * p.shape[-1] for p in patch_embeds_list], )
+        else:
+            raise ImportError("Xformers is required for Pixtral inference "
+                              "with the Mistral format")
+        out = self.transformer(patch_embeds, mask=mask, freqs_cis=freqs_cis)
+
+        # remove batch dimension of the single sequence
+        return out.squeeze(0)
