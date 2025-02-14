@@ -1,6 +1,7 @@
 
 from pixtral_utils import (VisionEncoderArgs,
-                            FeedForward
+                            FeedForward,
+                            Attention
                             )
 
 
@@ -77,5 +78,8 @@ if __name__ == "__main__":
     vision_args = VisionEncoderArgs(**params['vision_encoder'])
 
     ff = FeedForward(vision_args)
+
+    attention = Attention(vision_args)
+    
 
     
