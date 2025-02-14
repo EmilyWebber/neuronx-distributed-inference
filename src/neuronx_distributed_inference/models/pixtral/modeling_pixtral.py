@@ -115,102 +115,102 @@ def get_rmsnorm_cls():
     return CustomRMSNorm if parallel_state.get_tensor_model_parallel_size() > 1 else LlamaRMSNorm
 
 
-class PixtralInferenceConfig(InferenceConfig):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if not hasattr(self, "checkpoint"):
-            self.checkpoint = kwargs.get("checkpoint", HF_CHECKPOINT)
+# class PixtralInferenceConfig(InferenceConfig):
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#         if not hasattr(self, "checkpoint"):
+#             self.checkpoint = kwargs.get("checkpoint", HF_CHECKPOINT)
 
-        assert self.checkpoint in [
-            HF_CHECKPOINT,
-        ], f"Uknown checkpoint: {self.checkpoint}"
+#         assert self.checkpoint in [
+#             HF_CHECKPOINT,
+#         ], f"Uknown checkpoint: {self.checkpoint}"
 
-        if hasattr(self, "text_config"):
-            if isinstance(self.text_config, SimpleNamespace):
-                self.text_config = vars(self.text_config)
-            # replicating what's done in hf_adapter's load_config()
-            self.text_config.pop("torch_dtype", None)
-            self.text_config = InferenceConfig(self.neuron_config, **self.text_config)
-            if not hasattr(self.text_config, "checkpoint"):
-                setattr(self.text_config, "checkpoint", self.checkpoint)
+#         if hasattr(self, "text_config"):
+#             if isinstance(self.text_config, SimpleNamespace):
+#                 self.text_config = vars(self.text_config)
+#             # replicating what's done in hf_adapter's load_config()
+#             self.text_config.pop("torch_dtype", None)
+#             self.text_config = InferenceConfig(self.neuron_config, **self.text_config)
+#             if not hasattr(self.text_config, "checkpoint"):
+#                 setattr(self.text_config, "checkpoint", self.checkpoint)
 
-        if hasattr(self, "vision_config"):
-            if isinstance(self.vision_config, SimpleNamespace):
-                self.vision_config = vars(self.vision_config)
-            # replicating what's done in hf_adapter's load_config()
-            self.vision_config.pop("torch_dtype", None)
-            self.vision_config = InferenceConfig(self.neuron_config, **self.vision_config)
-            if not hasattr(self.vision_config, "checkpoint"):
-                setattr(self.vision_config, "checkpoint", self.checkpoint)
+#         if hasattr(self, "vision_config"):
+#             if isinstance(self.vision_config, SimpleNamespace):
+#                 self.vision_config = vars(self.vision_config)
+#             # replicating what's done in hf_adapter's load_config()
+#             self.vision_config.pop("torch_dtype", None)
+#             self.vision_config = InferenceConfig(self.neuron_config, **self.vision_config)
+#             if not hasattr(self.vision_config, "checkpoint"):
+#                 setattr(self.vision_config, "checkpoint", self.checkpoint)
 
-    def get_required_attributes(self) -> List[str]:
-        # To validate if the config.json include all the configs we need in model.
-        # Need to manually add what's required in below list
-        return [
-            "text_config.hidden_size",
-            "text_config.num_attention_heads",
-            "text_config.num_hidden_layers",
-            "text_config.num_key_value_heads",
-            "text_config.pad_token_id",
-            "text_config.vocab_size",
-            "text_config.max_position_embeddings",
-            "text_config.rope_theta",
-            "text_config.rms_norm_eps",
-            "text_config.hidden_act",
-            "text_config.cross_attention_layers",
-            "vision_config.max_num_tiles",
-            "vision_config.image_size",
-            "vision_config.patch_size",
-            "vision_config.num_hidden_layers",
-            "vision_config.num_global_layers",
-            "vision_config.num_channels",
-            "vision_config.hidden_size",
-            "vision_config.attention_heads",
-            "vision_config.intermediate_layers_indices",
-        ]
+#     def get_required_attributes(self) -> List[str]:
+#         # To validate if the config.json include all the configs we need in model.
+#         # Need to manually add what's required in below list
+#         return [
+#             "text_config.hidden_size",
+#             "text_config.num_attention_heads",
+#             "text_config.num_hidden_layers",
+#             "text_config.num_key_value_heads",
+#             "text_config.pad_token_id",
+#             "text_config.vocab_size",
+#             "text_config.max_position_embeddings",
+#             "text_config.rope_theta",
+#             "text_config.rms_norm_eps",
+#             "text_config.hidden_act",
+#             "text_config.cross_attention_layers",
+#             "vision_config.max_num_tiles",
+#             "vision_config.image_size",
+#             "vision_config.patch_size",
+#             "vision_config.num_hidden_layers",
+#             "vision_config.num_global_layers",
+#             "vision_config.num_channels",
+#             "vision_config.hidden_size",
+#             "vision_config.attention_heads",
+#             "vision_config.intermediate_layers_indices",
+#         ]
 
-    def validate_config(self):
-        """
-        Validates that the config has all required attributes.
-        """
+#     def validate_config(self):
+#         """
+#         Validates that the config has all required attributes.
+#         """
 
-        def hasattr_nested(obj, attr_chain):
-            attrs = attr_chain.split(".")
-            for attr in attrs:
-                if isinstance(obj, dict):
-                    if attr not in obj:
-                        return False
-                    obj = obj[attr]
-                else:
-                    if not hasattr(obj, attr):
-                        return False
-                    obj = getattr(obj, attr)
-            return True
+#         def hasattr_nested(obj, attr_chain):
+#             attrs = attr_chain.split(".")
+#             for attr in attrs:
+#                 if isinstance(obj, dict):
+#                     if attr not in obj:
+#                         return False
+#                     obj = obj[attr]
+#                 else:
+#                     if not hasattr(obj, attr):
+#                         return False
+#                     obj = getattr(obj, attr)
+#             return True
 
-        missing_attributes = [
-            x for x in self.get_required_attributes() if not hasattr_nested(self, x)
-        ]
-        assert len(missing_attributes) == 0, f"Config must define {missing_attributes}"
+#         missing_attributes = [
+#             x for x in self.get_required_attributes() if not hasattr_nested(self, x)
+#         ]
+#         assert len(missing_attributes) == 0, f"Config must define {missing_attributes}"
 
-        assert (
-            self.neuron_config.is_medusa is False and self.neuron_config.speculation_length == 0
-        ), f"Speculative Decoding is not yet supported in this Model. \
-                is_medusa was set to {self.neuron_config.is_medusa}. \
-                speculation_length was set to {self.neuron_config.speculation_length}"
-        assert (
-            int(self.neuron_config.logical_neuron_cores) == 1
-        ), "This model currently only support logical_neuron_cores=1"
+#         assert (
+#             self.neuron_config.is_medusa is False and self.neuron_config.speculation_length == 0
+#         ), f"Speculative Decoding is not yet supported in this Model. \
+#                 is_medusa was set to {self.neuron_config.is_medusa}. \
+#                 speculation_length was set to {self.neuron_config.speculation_length}"
+#         assert (
+#             int(self.neuron_config.logical_neuron_cores) == 1
+#         ), "This model currently only support logical_neuron_cores=1"
 
-    def to_json_string(self):
-        config_copy = copy.deepcopy(self)
-        config_dict = to_dict(config_copy)
-        config_dict["text_config"].pop("neuron_config", None)
-        config_dict["vision_config"].pop("neuron_config", None)
-        return json.dumps(config_dict, indent=2, sort_keys=True)
+#     def to_json_string(self):
+#         config_copy = copy.deepcopy(self)
+#         config_dict = to_dict(config_copy)
+#         config_dict["text_config"].pop("neuron_config", None)
+#         config_dict["vision_config"].pop("neuron_config", None)
+#         return json.dumps(config_dict, indent=2, sort_keys=True)
 
-    @classmethod
-    def get_neuron_config_cls(cls) -> Type[MultimodalVisionNeuronConfig]:
-        return MultimodalVisionNeuronConfig
+#     @classmethod
+#     def get_neuron_config_cls(cls) -> Type[MultimodalVisionNeuronConfig]:
+#         return MultimodalVisionNeuronConfig
 
 
 class NeuronPixtralAttention(NeuronAttentionBase):
