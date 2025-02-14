@@ -200,3 +200,19 @@ class VisionTransformer(nn.Module):
 
         # remove batch dimension of the single sequence
         return out.squeeze(0)
+
+class VisionLanguageAdapter(nn.Module):
+
+    def __init__(self, args: VisionEncoderArgs, dim: int):
+        super().__init__()
+        assert isinstance(args, VisionEncoderArgs)
+        self.w_in = nn.Linear(
+            args.hidden_size,
+            dim,
+            bias=args.adapter_bias,
+        )
+        self.gelu = nn.GELU()
+        self.w_out = nn.Linear(dim, dim, bias=args.adapter_bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.w_out(self.gelu(self.w_in(x)))

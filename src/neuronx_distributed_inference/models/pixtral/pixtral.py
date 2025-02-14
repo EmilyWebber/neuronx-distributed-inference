@@ -427,21 +427,7 @@ def position_meshgrid(patch_embeds_list: List[torch.Tensor], ) -> torch.Tensor:
     return positions
 
 
-class VisionLanguageAdapter(nn.Module):
 
-    def __init__(self, args: VisionEncoderArgs, dim: int):
-        super().__init__()
-        assert isinstance(args, VisionEncoderArgs)
-        self.w_in = nn.Linear(
-            args.hidden_size,
-            dim,
-            bias=args.adapter_bias,
-        )
-        self.gelu = nn.GELU()
-        self.w_out = nn.Linear(dim, dim, bias=args.adapter_bias)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.w_out(self.gelu(self.w_in(x)))
      
 
 

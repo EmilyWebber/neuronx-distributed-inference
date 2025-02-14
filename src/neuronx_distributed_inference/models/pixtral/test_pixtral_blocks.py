@@ -4,7 +4,8 @@ from pixtral_utils import (VisionEncoderArgs,
                             Attention,
                             TransformerBlock,
                             Transformer,
-                            VisionTransformer
+                            VisionTransformer,
+                            VisionLanguageAdapter
                             )
 
 from neuronx_distributed_inference.models.config import NeuronConfig, OnDeviceSamplingConfig
@@ -58,6 +59,8 @@ if __name__ == "__main__":
     transformer = Transformer(vision_args)
 
     vision_transformer = VisionTransformer(vision_args)
+
+    vision_adapter = VisionLanguageAdapter(vision_args, dim = params['dim'])
 
     print ('Success!')
 
