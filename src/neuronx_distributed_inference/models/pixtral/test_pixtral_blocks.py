@@ -1,10 +1,9 @@
 
 from pixtral_utils import (VisionEncoderArgs,
                             FeedForward,
-                            Attention
+                            Attention,
+                            TransformerBlock
                             )
-
-
 
 from neuronx_distributed_inference.models.config import NeuronConfig, OnDeviceSamplingConfig
 
@@ -80,6 +79,8 @@ if __name__ == "__main__":
     ff = FeedForward(vision_args)
 
     attention = Attention(vision_args)
+
+    transformer_block = TransformerBlock(vision_args)
     
 
     

@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from torch import nn, Tensor
 import torch
 
+from vllm.model_executor.layers.layernorm import RMSNorm
+
 
 # Vision encoder
 @dataclass
@@ -70,3 +72,26 @@ class Attention(nn.Module):
         out = xops.memory_efficient_attention(q, k, v, attn_bias=mask)
         out = out.reshape(batch, patches, self.n_heads * self.head_dim)
         return self.wo(out)
+
+class TransformerBlock(nn.Module):
+
+    def __init__(self, args: VisionEncoderArgs):
+        super().__init__()
+        self.attention = Attention(args)
+        self.feed_forward = FeedForward(args)
+        self.attention_norm = RMSNorm(args.hidden_size, eps=1e-5)
+        self.ffn_norm = RMSNorm(args.hidden_size, eps=1e-5)
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        mask: torch.Tensor,
+        freqs_cis: torch.Tensor,
+    ) -> torch.Tensor:
+        r = self.attention.forward(self.attention_norm(x),
+                                   mask=mask,
+                                   freqs_cis=freqs_cis)
+        h = x + r
+        r = self.feed_forward.forward(self.ffn_norm(h))
+        out = h + r
+        return out
