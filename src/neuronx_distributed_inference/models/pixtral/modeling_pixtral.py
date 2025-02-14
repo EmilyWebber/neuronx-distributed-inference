@@ -1,29 +1,54 @@
-# Meta Llama 3 is licensed under the Meta Llama 3 Community License
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the terms described in the LICENSE in the
-# # current directory, mllama/.
+"""PyTorch Pixtral Multimodal model for NXD inference."""
 
-"""PyTorch LLaMA Multimodal model for NXD inference."""
 import copy
 import json
 import logging
 import math
 from types import SimpleNamespace
-from typing import List, Optional, Tuple, Type, Union
+from typing import List, Optional, Tuple, Type, Union, Iterable, List, Mapping, Set
+from functools import cached_property
+from dataclasses import dataclass, fields
+from PIL import Image
 
 import torch
+from torch import Tensor, nn
 import torch.nn.functional as F
 import torch_xla.core.xla_model as xm
+
+from transformers import PixtralVisionConfig
+from transformers.models.pixtral.image_processing_pixtral import (
+    _num_image_tokens as _get_pixtral_hf_num_image_tokens)
+from transformers.models.pixtral.modeling_pixtral import (
+    PixtralRotaryEmbedding, apply_rotary_pos_emb, position_ids_in_meshgrid)
+from transformers.generation import SampleDecoderOnlyOutput, SampleEncoderDecoderOutput
+from transformers.modeling_outputs import CausalLMOutputWithPast
+from transformers.models.llama.modeling_llama import LlamaRMSNorm, LlamaRotaryEmbedding
+
+from mistral_common.protocol.instruct.messages import ImageChunk
+
+from vllm.attention import AttentionMetadata
+from vllm.distributed import divide, get_tensor_model_parallel_world_size
+from vllm.inputs import INPUT_REGISTRY,InputContext
+
+from vllm.model_executor.layers.layernorm import RMSNorm
+from vllm.model_executor.layers.linear import (MergedColumnParallelLinear,
+                                               QKVParallelLinear,
+                                               RowParallelLinear)
+from vllm.model_executor.layers.quantization import QuantizationConfig
+from vllm.model_executor.layers.sampler import SamplerOutput
+
+from vllm.model_executor.model_loader.weight_utils import default_weight_loader
+from vllm.model_executor.sampling_metadata import SamplingMetadata
+from vllm.multimodal import MULTIMODAL_REGISTRY
+
+from vllm.multimodal.utils import cached_get_tokenizer
+from vllm.sequence import IntermediateTensors, SequenceData
+
 from neuronx_distributed.parallel_layers.mappings import (
     _reduce_scatter_along_dim,
     gather_from_sequence_parallel_region,
 )
-from torch import Tensor, nn
-from transformers.generation import SampleDecoderOnlyOutput, SampleEncoderDecoderOutput
-from transformers.modeling_outputs import CausalLMOutputWithPast
-from transformers.models.llama.modeling_llama import LlamaRMSNorm, LlamaRotaryEmbedding
+
 
 from neuronx_distributed_inference.models.llama.modeling_llama import Llama3RotaryEmbedding
 from neuronx_distributed_inference.modules.attention.attention_base import (
@@ -70,6 +95,12 @@ from neuronx_distributed_inference.models.model_base import (  # noqa: E402
 from modeling_pixtral_vision import NeuronMllamaVisionModel  # noqa: E402
 
 DEBUG = False
+
+try:
+    from xformers import ops as xops
+    USE_XFORMERS_OPS = True
+except ImportError:
+    USE_XFORMERS_OPS = False
 
 
 def get_rmsnorm_cls():
