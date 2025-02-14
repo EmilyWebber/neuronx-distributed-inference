@@ -24,6 +24,8 @@ from transformers.generation import SampleDecoderOnlyOutput, SampleEncoderDecode
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from transformers.models.llama.modeling_llama import LlamaRMSNorm, LlamaRotaryEmbedding
 
+from transformers import AutoTokenizer, GenerationConfig
+
 from mistral_common.protocol.instruct.messages import ImageChunk
 
 from vllm.attention import AttentionMetadata
@@ -102,7 +104,6 @@ try:
 except ImportError:
     USE_XFORMERS_OPS = False
 
-
 def get_rmsnorm_cls():
     # Initialize to the appropriate implementation of RMSNorm
     # If infer on NXD -> CustomRMSNorm
@@ -110,7 +111,7 @@ def get_rmsnorm_cls():
     return CustomRMSNorm if parallel_state.get_tensor_model_parallel_size() > 1 else LlamaRMSNorm
 
 
-class MllamaInferenceConfig(InferenceConfig):
+class PixtralInferenceConfig(InferenceConfig):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if not hasattr(self, "checkpoint"):
@@ -209,7 +210,7 @@ class MllamaInferenceConfig(InferenceConfig):
         return MultimodalVisionNeuronConfig
 
 
-class NeuronLlamaAttention(NeuronAttentionBase):
+class NeuronPixtralAttention(NeuronAttentionBase):
     """
     Compared with LlamaAttention, this class just
     1. replaces the q_proj, k_proj, v_proj with column parallel layer
@@ -401,7 +402,7 @@ class NeuronLlamaAttention(NeuronAttentionBase):
         return attn_output, past_key_value, cos_cache, sin_cache
 
 
-class NeuronLlamaAttentionBlock(torch.nn.Module):
+class NeuronPixtralAttentionBlock(torch.nn.Module):
     def __init__(self, config: InferenceConfig):
         super().__init__()
         self.self_attn = NeuronLlamaAttention(config=config)
@@ -447,7 +448,7 @@ class NeuronLlamaAttentionBlock(torch.nn.Module):
         return outputs
 
 
-class NeuronMllamaDecoderLayer(nn.Module):
+class NeuronPixtralDecoderLayer(nn.Module):
     """
     Just replace the attention with the NXD version, and MLP with the NXD version
     """
@@ -456,7 +457,7 @@ class NeuronMllamaDecoderLayer(nn.Module):
         super().__init__()
         self.hidden_size = config.hidden_size
         self.vision_config = vision_config
-        self.self_attn = NeuronLlamaAttentionBlock(config)
+        self.self_attn = NeuronPixtralAttentionBlock(config)
 
     def forward(
         self,
@@ -471,10 +472,6 @@ class NeuronMllamaDecoderLayer(nn.Module):
         has_image: Optional[Tuple[torch.Tensor]] = None,
         **kwargs,
     ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
-        # apply cross attention
-        hidden_states, new_vision_key_value = self.xatten(
-            hidden_states, vision_tokens, vision_key_value, vision_mask, num_chunks, has_image
-        )
 
         # apply regular attention
         hidden_states, present_key_value, cos_cache, sin_cache = self.self_attn(
@@ -488,57 +485,9 @@ class NeuronMllamaDecoderLayer(nn.Module):
         return outputs
 
 
-class PartiallyTrainable_Embedding(torch.nn.Module):
-    def __init__(self, config: InferenceConfig):
-        super().__init__()
-        self.hidden_size = config.hidden_size
-        self.tp_degree = parallel_state.get_tensor_model_parallel_size()
-        self.padding_idx = config.pad_token_id
-        self.vocab_size = config.vocab_size
-        self.replication_factor = self.tp_degree // 8
-        self.tok_embeddings = ParallelEmbedding(
-            self.vocab_size,
-            self.hidden_size,
-            self.padding_idx,
-            dtype=config.neuron_config.torch_dtype,
-            shard_across_embedding=True,
-            pad=True,
-        )
-        self.learnable_embedding = nn.Embedding(
-            8,
-            self.hidden_size,
-            dtype=config.neuron_config.torch_dtype,
-        )
-
-        self.num_frozen_embeddings = self.tok_embeddings.num_embeddings
-        self._thresh = self.num_frozen_embeddings - 1
-
-    def forward(
-        self,
-        hidden_states: torch.Tensor,
-    ) -> torch.Tensor:
-        xz = torch.zeros_like(hidden_states, device=hidden_states.device)
-        oz = torch.ones_like(hidden_states, device=hidden_states.device)
-        x_orig = torch.minimum(
-            hidden_states, torch.tensor(self._thresh, device=hidden_states.device)
-        )
-        x_new = (
-            torch.maximum(
-                hidden_states, torch.tensor(self._thresh + 1, device=hidden_states.device)
-            )
-            - self.num_frozen_embeddings
-        )
-
-        mask_orig = torch.where(hidden_states >= self.num_frozen_embeddings, xz, oz).unsqueeze(-1)
-        mask_new = torch.where(hidden_states < self.num_frozen_embeddings, xz, oz).unsqueeze(-1)
-        x_orig = self.tok_embeddings(x_orig)
-        x_new = self.learnable_embedding(x_new).type_as(x_orig)
-        return x_orig * mask_orig.type_as(x_orig) + x_new * mask_new.type_as(x_new)
-
-
-class NeuronMllamaTextModel(NeuronBaseModel):
+class NeuronPixtralTextModel(NeuronBaseModel):
     """
-    The neuron version of language model of the Llama Multimodal Model
+    The neuron version of language model of the Pixtral Multimodal Model
     """
 
     def __init__(self, config: InferenceConfig, vision_config):
@@ -616,7 +565,7 @@ class NeuronMllamaTextModel(NeuronBaseModel):
 
         self.layers = nn.ModuleList(
             [
-                NeuronMllamaDecoderLayer(config, self.vision_config, (i in self.fusion_schedule))
+                NeuronPixtralDecoderLayer(config, self.vision_config, (i in self.fusion_schedule))
                 for i in range(self.num_hidden_layers)
             ]
         )
@@ -902,7 +851,7 @@ class NeuronMllamaModel(NeuronBaseModel):
         return outputs
 
 
-class NeuronMllamaForCausalLM(NeuronBaseForCausalLM):
+class NeuronPixtralForConditionalGeneration(NeuronBaseForCausalLM):
     """
     This class extends LlamaForCausalLM create traceable
     blocks for Neuron.
@@ -1175,3 +1124,8 @@ class NeuronMllamaForCausalLM(NeuronBaseForCausalLM):
     @staticmethod
     def update_state_dict_for_tied_weights(state_dict):
         pass
+
+
+
+
+

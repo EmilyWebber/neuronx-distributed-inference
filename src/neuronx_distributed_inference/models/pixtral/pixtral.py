@@ -1,40 +1,4 @@
-# SPDX-License-Identifier: Apache-2.0
 
-
-
-
-##### imports below this line are proposed as a candiate to replace the original methods. they are not confirmed and need to be tested
-
-# from vllm.config import VllmConfig 
-
-
-# from vllm.inputs import DecoderOnlyInputs, DummyData, token_inputs
-
-
-# from vllm.model_executor.layers.sampler import get_sampler
-# we just call Sampler() in our CausalLM init ln 67 vllm/ .. /neuronx_distributed.py
-
-
-# from vllm.multimodal import MultiModalKwargs
-# we don't have an explicit multimodalkwargs class, we pass everything into the configs
-
-# from .interfaces import SupportsMultiModal, SupportsPP
-# these two classes seem to be required in the mainline vllm, but not in the Neuron fork
-
-# from .utils import init_vllm_registered_model
-# we can initialize it using the fork
-
-# from .utils import maybe_prefix
-# this is used to initialize the LM through vllm, we can use our syntax for that
-
-# from .vision import VisionEncoderInfo
-# we can handle metadata for the vision encoder through NeuronConfig etc
-
-###### imports below this line I do not see an easy way to replace ######## 
-
-# from .utils import merge_multimodal_embeddings
-# from vllm.multimodal.utils import consecutive_placeholder_ranges
-# from vllm.multimodal.inputs import PlaceholderRange, NestedTensors
 
 def get_max_pixtral_image_tokens(ctx: InputContext):
     tokenizer = cached_get_tokenizer(
@@ -387,21 +351,6 @@ class PixtralForConditionalGeneration(nn.Module, SupportsMultiModal,
         self.language_model.load_weights(llm_weights_generator())
 
 
-# Vision encoder
-@dataclass
-class VisionEncoderArgs:
-    hidden_size: int
-    num_channels: int
-    image_size: int
-    patch_size: int
-    intermediate_size: int
-    num_hidden_layers: int
-    num_attention_heads: int
-    rope_theta: float  # for rope-2D
-    image_token_id: int
-    image_break_token_id: int
-    image_end_token_id: int
-    adapter_bias: bool = True
 
 
 def _reshape_for_broadcast(freqs_cis: torch.Tensor,
@@ -462,6 +411,9 @@ def apply_rotary_emb_vit(
     xq_out = torch.view_as_real(xq_ * freqs_cis).flatten(3)
     xk_out = torch.view_as_real(xk_ * freqs_cis).flatten(3)
     return xq_out.type_as(xq), xk_out.type_as(xk)
+
+
+
 
 
 class FeedForward(nn.Module):
@@ -573,6 +525,22 @@ def position_meshgrid(patch_embeds_list: List[torch.Tensor], ) -> torch.Tensor:
     return positions
 
 
+class VisionLanguageAdapter(nn.Module):
+
+    def __init__(self, args: VisionEncoderArgs, dim: int):
+        super().__init__()
+        assert isinstance(args, VisionEncoderArgs)
+        self.w_in = nn.Linear(
+            args.hidden_size,
+            dim,
+            bias=args.adapter_bias,
+        )
+        self.gelu = nn.GELU()
+        self.w_out = nn.Linear(dim, dim, bias=args.adapter_bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.w_out(self.gelu(self.w_in(x)))
+        
 class VisionTransformer(nn.Module):
 
     def __init__(self, args: VisionEncoderArgs):
@@ -658,19 +626,11 @@ class VisionTransformer(nn.Module):
         return out.squeeze(0)
 
 
-class VisionLanguageAdapter(nn.Module):
 
-    def __init__(self, args: VisionEncoderArgs, dim: int):
-        super().__init__()
-        assert isinstance(args, VisionEncoderArgs)
-        self.w_in = nn.Linear(
-            args.hidden_size,
-            dim,
-            bias=args.adapter_bias,
-        )
-        self.gelu = nn.GELU()
-        self.w_out = nn.Linear(dim, dim, bias=args.adapter_bias)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.w_out(self.gelu(self.w_in(x)))
+
+
+
+
+
 
