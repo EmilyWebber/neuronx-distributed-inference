@@ -60,7 +60,7 @@ def test_all_obj_builds(params):
 
     # pixtral = PixtralForConditionalGeneration()
     
-    print ('Success on the builds!')
+    print ('Success on the builds!') 
 
 if __name__ == "__main__":
 

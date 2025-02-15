@@ -47,18 +47,32 @@ class FeedForward(nn.Module):
         super().__init__()
         assert args.intermediate_size is not None
 
-        self.w1 = nn.Linear(args.hidden_size,
+        # self.w1 = nn.Linear(args.hidden_size,
+        #                                args.intermediate_size,
+        #                                bias=False)
+
+        # self.w2 = nn.Linear(args.intermediate_size,
+        #                             args.hidden_size,
+        #                             bias=False)
+        
+        # self.w3 = nn.Linear(args.hidden_size,
+        #                     args.intermediate_size,
+        #                     bias=False)
+
+
+        self.w1 = ColumnParallelLinear(args.hidden_size,
                                        args.intermediate_size,
                                        bias=False)
 
-        self.w2 = nn.Linear(args.intermediate_size,
+        self.w2 = RowParallelLinear(args.intermediate_size,
                                     args.hidden_size,
                                     bias=False)
         
-        self.w3 = nn.Linear(args.hidden_size,
+        self.w3 = ColumnParallelLinear(args.hidden_size,
                             args.intermediate_size,
                             bias=False)
 
+    
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.w2(F.silu(self.w1(x)) * self.w3(x))
 
