@@ -119,8 +119,8 @@ def get_rmsnorm_cls():
 
 class NeuronPixtralModel(NeuronBaseModel):
         def __init__(self, config: InferenceConfig):
-            self.vision_config = config.vision_config
             self.text_config = config.text_config
+            self.vision_config = config.vision_config
             super().__init__(self.text_config, optimize_inference = False)
 
         def init_model(self, config: InferenceConfig):

@@ -8,8 +8,24 @@ from vllm.model_executor.layers.layernorm import RMSNorm
 
 from neuronx_distributed.parallel_layers import ColumnParallelLinear, RowParallelLinear
 
+from neuronx_distributed_inference.modules.attention.attention_base import (
+    FlashAttentionStrategy,
+    NeuronAttentionBase,
+)
 
-# Vision encoder
+from neuronx_distributed_inference.modules.attention.utils import (
+    RotaryEmbedding,
+    apply_rotary_polar_compatible,
+    move_heads_front,
+    precompute_freqs_cis,
+)
+
+from transformers.models.llama.modeling_llama import LlamaRMSNorm, LlamaRotaryEmbedding
+
+from neuronx_distributed.parallel_layers import parallel_state 
+
+from neuronx_distributed_inference.models.config import InferenceConfig
+
 @dataclass
 class VisionEncoderArgs:
     hidden_size: int
@@ -47,19 +63,41 @@ class FeedForward(nn.Module):
         return self.w2(F.silu(self.w1(x)) * self.w3(x))
 
 
-class Attention(nn.Module):
-
-    def __init__(self, args: VisionEncoderArgs):
+class Attention(NeuronAttentionBase):
+    def __init__(
+            self, config: VisionEncoderArgs):
         super().__init__()
-        self.args = args
-        assert not args.hidden_size % args.num_attention_heads
-        self.n_heads = args.num_attention_heads
-        self.head_dim = args.hidden_size // args.num_attention_heads
+        self.config = config
+        self.neuron_config = config.neuron_config
+        self.hidden_size = 1408
+        self.num_attention_heads = 16
+        
+        # print ('To do need to confirm number of kv heads in vision encoder, is it really ', 8)
+        self.num_key_value_heads = 8
+        
+        self.head_dim = self.hidden_size // self.num_attention_heads
+        self.padding_side = self.neuron_config.padding_side
+        self.torch_dtype = self.neuron_config.torch_dtype
+        self.is_medusa = self.neuron_config.is_medusa
+        self.num_cores_per_group = config.num_cores_per_group
+        # self.max_position_embeddings = config.neuron_config.max_position_embeddings
 
-        self.wq = nn.Linear(args.hidden_size, args.hidden_size, bias=False)
-        self.wk = nn.Linear(args.hidden_size, args.hidden_size, bias=False)
-        self.wv = nn.Linear(args.hidden_size, args.hidden_size, bias=False)
-        self.wo = nn.Linear(args.hidden_size, args.hidden_size, bias=False)
+        self.attn_kernel_enabled = True
+
+        if parallel_state.model_parallel_is_initialized():
+            self.tp_degree = parallel_state.get_tensor_model_parallel_size()
+        else:
+            self.tp_degree = 1
+            
+        self.fused_qkv = getattr(self.neuron_config, "fused_qkv", False)
+        self.clip_qkv = None
+ 
+        self.sequence_parallel_enabled = self.neuron_config.sequence_parallel_enabled
+        self.sequence_dimension = 1 if self.sequence_parallel_enabled else None
+
+        self.init_gqa_properties()
+
+        # self.init_rope()
 
     def forward(
         self,
@@ -67,17 +105,55 @@ class Attention(nn.Module):
         mask: torch.Tensor,
         freqs_cis: torch.Tensor,
     ) -> torch.Tensor:
-        batch, patches, _ = x.shape
+        print ('Attention forward pass is not implemented')
+        # batch, patches, _ = x.shape
 
-        q, k, v = self.wq(x), self.wk(x), self.wv(x)
-        q = q.reshape(batch, patches, self.n_heads, self.head_dim)
-        k = k.reshape(batch, patches, self.n_heads, self.head_dim)
-        v = v.reshape(batch, patches, self.n_heads, self.head_dim)
+        # q, k, v = self.wq(x), self.wk(x), self.wv(x)
+        # q = q.reshape(batch, patches, self.n_heads, self.head_dim)
+        # k = k.reshape(batch, patches, self.n_heads, self.head_dim)
+        # v = v.reshape(batch, patches, self.n_heads, self.head_dim)
 
-        q, k = apply_rotary_emb_vit(q, k, freqs_cis=freqs_cis)
-        out = xops.memory_efficient_attention(q, k, v, attn_bias=mask)
-        out = out.reshape(batch, patches, self.n_heads * self.head_dim)
-        return self.wo(out)
+        # q, k = apply_rotary_emb_vit(q, k, freqs_cis=freqs_cis)
+        # out = xops.memory_efficient_attention(q, k, v, attn_bias=mask)
+        # out = out.reshape(batch, patches, self.n_heads * self.head_dim)
+        # return self.wo(out)
+
+    def init_rope(self):
+        if not hasattr(self.config, "rope_scaling") or self.config.rope_scaling is None:
+            # TODO(yihsian): Check if we can just use our own implementation
+            if self.is_medusa:
+                self.rotary_emb = LlamaRotaryEmbedding(
+                    self.head_dim,
+                    max_position_embeddings=self.max_position_embeddings,
+                    base=self.rope_theta,
+                )
+            else:
+                self.rotary_emb = RotaryEmbedding(
+                    self.head_dim,
+                    max_position_embeddings=self.max_position_embeddings,
+                    base=self.rope_theta,
+                )
+        else:
+            rope_type = self.config.rope_scaling.get(
+                "rope_type", self.config.rope_scaling.get("type", None)
+            )
+            if rope_type == "llama3":
+                self.rotary_emb = Llama3RotaryEmbedding(
+                    dim=self.head_dim,
+                    max_position_embeddings=self.max_position_embeddings,
+                    base=self.rope_theta,
+                    factor=self.config.rope_scaling["factor"],
+                    low_freq_factor=self.config.rope_scaling["low_freq_factor"],
+                    high_freq_factor=self.config.rope_scaling["high_freq_factor"],
+                    original_max_position_embeddings=self.config.rope_scaling[
+                        "original_max_position_embeddings"
+                    ],
+                )
+            else:
+                # LlamaRotaryEmbedding automatically chooses the correct scaling type from config.
+                # Warning: The HF implementation may have precision issues when run on Neuron.
+                # We include it here for compatibility with other scaling types.
+                self.rotary_emb = LlamaRotaryEmbedding(self.config)
 
 class TransformerBlock(nn.Module):
 
