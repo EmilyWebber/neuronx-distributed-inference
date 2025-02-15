@@ -98,8 +98,6 @@ from neuronx_distributed_inference.models.model_base import (  # noqa: E402
     turn_2d_mask_to_4d,
 )
 
-from modeling_pixtral_vision import NeuronMllamaVisionModel  # noqa: E402
-
 DEBUG = False
 
 try:
@@ -107,6 +105,8 @@ try:
     USE_XFORMERS_OPS = True
 except ImportError:
     USE_XFORMERS_OPS = False
+
+from pixtral_utils import VisionTransformer
 
 HF_CHECKPOINT = "HF"
 META_CHECKPOINT = "META"
@@ -117,16 +117,39 @@ def get_rmsnorm_cls():
     # If infer on CPU -> HF's LlamaRMSNorm (CustomRMSNorm does not work on CPU)
     return CustomRMSNorm if parallel_state.get_tensor_model_parallel_size() > 1 else LlamaRMSNorm
 
+class NeuronPixtralModel(NeuronBaseModel):
+        def __init__(self, config: InferenceConfig):
+            self.vision_config = config.vision_config
+            self.text_config = config.text_config
+            super().__init__(self.text_config, optimize_inference = False)
+
+        def init_model(self, config: InferenceConfig):
+            self.vision_model = VisionTransformer(self.vision_config)
+            # self.text_model = to do replace this with the MistralForCausalLM
+
+        def setup_attr_for_model(self, config: InferenceConfig):
+            self.on_device_sampling = config.neuron_config.on_device_sampling_config
+            self.tp_degree = config.neuron_config.tp_degree
+            self.hidden_dim = self.text_config.hidden_dim
+            self.n_heads = self.text_config.n_heads
+            self.dim = self.text_config.dim
+            self.n_layers = self.text_config.n_layers
+            self.head_dim = self.text_config.head_dim
+            self.n_kv_heads = self.text_config.n_kv_heads
+            self.rope_theta = self.text_config.rope_theta
+            self.norm_eps = self.text_config.norm_eps
+            self.vocab_size = self.text_config.vocab_size
+
+
+        def forward(self):
+            print ('Forward pass is not yet implemented for NeuronPixtralModel')
+
+    
 class PixtralInferenceConfig(InferenceConfig):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.hidden_size = args[1]['hidden_dim']
-        self.num_attention_heads = args[1]['n_heads']
-        self.num_hidden_layers = args[1]['n_layers']
-        self.num_key_value_heads = args[1]['n_kv_heads']
-        self.vocab_size = args[1]['vocab_size']
-        self.rope_theta = args[1]['rope_theta']
-        self.rms_norm_eps = args[1]['norm_eps']
+        super().__init__(*args, **kwargs)    
+        self.text_config = args[1]['text_config']
+        self.vision_config = args[1]['vision_encoder']
         
         if not hasattr(self, "checkpoint"):
             self.checkpoint = kwargs.get("checkpoint", HF_CHECKPOINT)

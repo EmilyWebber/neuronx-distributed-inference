@@ -10,10 +10,12 @@ from pixtral_utils import (VisionEncoderArgs,
 
 from neuronx_distributed_inference.models.config import MultimodalVisionNeuronConfig, OnDeviceSamplingConfig
 
-from modeling_pixtral import PixtralInferenceConfig
+from modeling_pixtral import (PixtralInferenceConfig,
+                                NeuronPixtralModel
+                                )
 
-# pull from params.json
-params = {
+# pull from params.json and cast as nested dict
+params = {'text_config' : {
   "dim": 12288,
   "n_layers": 88,
   "head_dim": 128,
@@ -22,7 +24,7 @@ params = {
   "n_kv_heads": 8,
   "rope_theta": 1000000000.0,
   "norm_eps": 1e-05,
-  "vocab_size": 32768,
+  "vocab_size": 32768},
   "vision_encoder": {
     "hidden_size": 1408,
     "num_channels": 3,
@@ -44,7 +46,7 @@ def test_all_obj_builds(params):
 
     vision_args = VisionEncoderArgs(**params['vision_encoder'])
 
-    ff = FeedForward(vision_args)
+    # ff = FeedForward(vision_args)
 
     attention = Attention(vision_args)
 
@@ -60,9 +62,8 @@ def test_all_obj_builds(params):
     
     print ('Success on the builds!')
 
-def test_configs(params):
+if __name__ == "__main__":
 
-    print ('Testing the configs')
     batch_size = 1
     num_img_per_prompt = 1
     max_context_length = 1024
@@ -73,23 +74,13 @@ def test_configs(params):
         batch_size=batch_size,
         max_context_length=max_context_length,
         seq_len=seq_len,
-        on_device_sampling_config=OnDeviceSamplingConfig(dynamic=True),
+        on_device_sampling_config=OnDeviceSamplingConfig(dynamic=False),
         enable_bucketing=True,
         sequence_parallel_enabled=False,
         fused_qkv=False,
         async_mode=False,
     )
-
-    vision_args = VisionEncoderArgs(**params['vision_encoder'])
     
     pixtral_config = PixtralInferenceConfig(neuron_config, params)
 
-    print ('Success on the configs!')
-    
-if __name__ == "__main__":
-    test_configs(params)
-
-    test_all_obj_builds(params)
-
-
-    
+    neuron_pixtral = NeuronPixtralModel(pixtral_config)
