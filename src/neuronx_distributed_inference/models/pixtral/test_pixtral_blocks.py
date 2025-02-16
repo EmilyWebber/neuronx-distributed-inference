@@ -41,7 +41,8 @@ params = {'text_config' : {
     "image_token_id": 10,
     "image_break_token_id": 14,
     "image_end_token_id": 15,
-    "adapter_bias": False
+    "adapter_bias": False,
+    "max_num_tiles": 4 #copying from mllama
   }
 }
 
@@ -91,5 +92,5 @@ if __name__ == "__main__":
 
     neuron_pixtral = NeuronPixtralForConditionalGeneration(checkpoint_path, pixtral_config)
 
-
+    neuron_pixtral.compile(trace_path)
     
