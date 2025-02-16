@@ -246,7 +246,7 @@ class VisionTransformer(nn.Module):
 
     def forward(
         self,
-        images: List[torch.Tensor],
+        images: List[torch.Tensor], etc
     ) -> torch.Tensor:
         """
         Args:

@@ -1,4 +1,8 @@
+'''
+Testing suite for building blocks of Pixtral on Trainium
 
+Command to run during compilation: python test_pixtral_blocks.py 2>&1 | tee compile_log.txt
+'''
 from pixtral_utils import (VisionEncoderArgs,
                             FeedForward,
                             Attention,
