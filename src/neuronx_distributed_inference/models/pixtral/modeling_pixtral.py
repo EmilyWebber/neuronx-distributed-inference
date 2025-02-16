@@ -108,6 +108,8 @@ except ImportError:
 
 from pixtral_utils import VisionTransformer
 
+from modeling_mistral import NeuronLlamaModel
+
 HF_CHECKPOINT = "HF"
 META_CHECKPOINT = "META"
 
@@ -125,7 +127,7 @@ class NeuronPixtralModel(NeuronBaseModel):
 
         def init_model(self, config: InferenceConfig):
             self.vision_model = VisionTransformer(self.vision_config)
-            # self.text_model = to do replace this with the MistralForCausalLM
+            self.text_model = NeuronLlamaModel(self.text_config)
 
         def setup_attr_for_model(self, config: InferenceConfig):
             self.on_device_sampling = config.neuron_config.on_device_sampling_config
@@ -215,3 +217,52 @@ class PixtralInferenceConfig(InferenceConfig):
     @classmethod
     def get_neuron_config_cls(cls) -> Type[MultimodalVisionNeuronConfig]:
         return MultimodalVisionNeuronConfig
+
+class NeuronPixtralForConditionalGeneration(NeuronBaseForCausalLM):
+    """
+    This class extends LlamaForCausalLM to create traceable
+    blocks for Neuron.
+
+    Args:
+        LlamaForCausalLM (_type_): _description_
+    """
+
+    _model_cls = NeuronPixtralModel
+
+    @classmethod
+    def get_config_cls(cls):
+        return PixtralInferenceConfig
+
+    @classmethod
+    def get_neuron_config_cls(cls):
+        return MultimodalVisionNeuronConfig
+
+    @staticmethod
+    def load_hf_model(model_path):
+        raise Exception("HuggingFace checkpoint is not supported yet")
+
+    def get_compiler_args(self) -> str:
+        return "--enable-saturate-infinity --auto-cast=none --model-type=transformer \
+                --tensorizer-options='--enable-ccop-compute-overlap \
+                --cc-pipeline-tiling-factor=2 --vectorize-dge-dma --vectorize-strided-dma' -O1 \
+                --hbm-scratchpad-page-size=1024"
+
+    @staticmethod
+    def convert_hf_to_neuron_state_dict(
+        state_dict: dict, inference_config: InferenceConfig
+    ) -> dict:
+        if inference_config.checkpoint == HF_CHECKPOINT:
+            from .hf_state_dict_conversion import convert_hf_state_dict_to_neuron_state_dict
+
+            return convert_hf_state_dict_to_neuron_state_dict(state_dict, inference_config)
+        elif inference_config.checkpoint == META_CHECKPOINT:
+            from .meta_state_dict_conversion import convert_meta_state_dict_to_neuron_state_dict
+
+            return convert_meta_state_dict_to_neuron_state_dict(state_dict, inference_config)
+
+    def get_model_wrapper_cls(self):
+        return ModelWrapperMllama
+
+    @staticmethod
+    def update_state_dict_for_tied_weights(state_dict):
+        pass

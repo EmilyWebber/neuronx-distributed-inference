@@ -11,8 +11,8 @@ from pixtral_utils import (VisionEncoderArgs,
 from neuronx_distributed_inference.models.config import MultimodalVisionNeuronConfig, OnDeviceSamplingConfig
 
 from modeling_pixtral import (PixtralInferenceConfig,
-                                NeuronPixtralModel
-                                )
+                              NeuronPixtralForConditionalGeneration
+                              )
 
 from modeling_mistral import NeuronMistralForCausalLM
 
@@ -50,7 +50,7 @@ def test_all_obj_builds(params):
 
     vision_args = VisionEncoderArgs(**params['vision_encoder'])
 
-    # ff = FeedForward(vision_args)
+    ff = FeedForward(vision_args)
 
     attention = Attention(vision_args)
 
@@ -61,8 +61,6 @@ def test_all_obj_builds(params):
     vision_transformer = VisionTransformer(vision_args)
 
     vision_adapter = VisionLanguageAdapter(vision_args, dim = params['dim'])
-
-    # pixtral = PixtralForConditionalGeneration()
     
     print ('Success on the builds!') 
 
@@ -91,8 +89,7 @@ if __name__ == "__main__":
     
     pixtral_config = PixtralInferenceConfig(neuron_config, params)
 
-    # neuron_pixtral = NeuronPixtralModel(pixtral_config)
+    neuron_pixtral = NeuronPixtralForConditionalGeneration(checkpoint_path, pixtral_config)
 
-    neuron_mistral = NeuronMistralForCausalLM(checkpoint_path, pixtral_config)
 
     

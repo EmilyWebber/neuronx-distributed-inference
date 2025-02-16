@@ -943,6 +943,9 @@ class NeuronLlamaModel(NeuronBaseModel):
 
 class NeuronMistralForCausalLM(NeuronBaseForCausalLM):
     """
+
+    Not used for Pixtral, but included for testing
+    
     This class extends LlamaForCausalLM create traceable
     blocks for Neuron.
 
