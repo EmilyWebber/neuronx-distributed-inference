@@ -170,9 +170,9 @@ class MMDecoderModelInstance(DecoderModelInstance):
 
         if self.module.kv_mgr is not None:
             past_key_values = self.module.kv_mgr.past_key_values
-            vision_key_values = self.module.kv_mgr.vision_key_values
-        else:
-            past_key_values = self.module.past_key_values
+        #     vision_key_values = self.module.kv_mgr.vision_key_values
+        # else:
+            # past_key_values = self.module.past_key_values
             vision_key_values = []
 
         num_output_from_trace = 1 + len(past_key_values)

@@ -123,7 +123,7 @@ class NeuronPixtralModel(NeuronBaseModel):
         def __init__(self, config: InferenceConfig):
             self.text_config = config.text_config
             self.vision_config = config.vision_config
-            super().__init__(self.text_config, optimize_inference = False)
+            super().__init__(self.text_config)
 
         def init_model(self, config: InferenceConfig):
             self.vision_model = VisionTransformer(self.vision_config)
@@ -133,7 +133,7 @@ class NeuronPixtralModel(NeuronBaseModel):
             self.on_device_sampling = config.neuron_config.on_device_sampling_config
             self.tp_degree = config.neuron_config.tp_degree
             self.hidden_dim = self.text_config.hidden_dim
-            self.n_heads = self.text_config.n_heads
+            self.num_key_value_heads = self.text_config.n_heads
             self.dim = self.text_config.dim
             self.n_layers = self.text_config.n_layers
             self.head_dim = self.text_config.head_dim
@@ -142,7 +142,12 @@ class NeuronPixtralModel(NeuronBaseModel):
             self.norm_eps = self.text_config.norm_eps
             self.vocab_size = self.text_config.vocab_size
 
-
+        def init_inference_optimization(self, config: InferenceConfig):
+            super().init_inference_optimization(config)
+            # only need one kv cache mgr
+            self.kv_mgr = self.text_model.kv_mgr 
+            # disabling kv_mgr to avoid error in model wrapper
+        
         def forward(self):
             print ('Forward pass is not yet implemented for NeuronPixtralModel')
     
