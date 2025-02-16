@@ -143,13 +143,13 @@ class NeuronPixtralModel(NeuronBaseModel):
 
         def forward(self):
             print ('Forward pass is not yet implemented for NeuronPixtralModel')
-
     
 class PixtralInferenceConfig(InferenceConfig):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)    
         self.text_config = args[1]['text_config']
         self.vision_config = args[1]['vision_encoder']
+        self.pad_token_id = args[1]['text_config']['pad_token_id']
         
         if not hasattr(self, "checkpoint"):
             self.checkpoint = kwargs.get("checkpoint", HF_CHECKPOINT)
