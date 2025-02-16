@@ -152,6 +152,7 @@ class PixtralInferenceConfig(InferenceConfig):
         self.text_config = args[1]['text_config']
         self.vision_config = args[1]['vision_encoder']
         self.pad_token_id = args[1]['text_config']['pad_token_id']
+        self.fused_spec_config = None # hard overwrite to pass application_base assert
         
         if not hasattr(self, "checkpoint"):
             self.checkpoint = kwargs.get("checkpoint", HF_CHECKPOINT)

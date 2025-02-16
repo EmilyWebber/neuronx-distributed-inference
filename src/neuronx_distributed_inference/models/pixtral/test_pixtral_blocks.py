@@ -17,17 +17,25 @@ from modeling_pixtral import (PixtralInferenceConfig,
 from modeling_mistral import NeuronMistralForCausalLM
 
 # pull from params.json and cast as nested dict
+# some of the parameters I add twice to more easily get around the hard string checks on naming in InferenceConfig and dependencies (heads, dim, etc)
 params = {'text_config' : {
   "dim": 12288,
   "n_layers": 88,
+  "num_hidden_layers": 88,
   "head_dim": 128,
   "hidden_dim": 28672,
   "hidden_size": 28672, # adding again with second string identified size vs dim
   "n_heads": 96,
+  "num_attention_heads": 96,
   "n_kv_heads": 8,
+  "num_key_value_heads": 8,
   "rope_theta": 1000000000.0,
   "norm_eps": 1e-05,
+   "rms_norm_eps": 1e-05,
   "vocab_size": 32768,
+    "intermediate_size": 28672, # from mistral large
+   "max_position_embeddings": 131072, #adding from Mistral Large Instruct 2407
+    "hidden_act": "silu", # from mistral large
   "pad_token_id": 128004}, # the pad token id is added from llama 3.2 11b vision instruct
   "vision_encoder": {
     "hidden_size": 1408,
