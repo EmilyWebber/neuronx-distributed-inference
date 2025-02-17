@@ -139,6 +139,17 @@ def get_rmsnorm_cls():
     return CustomRMSNorm if parallel_state.get_tensor_model_parallel_size() > 1 else LlamaRMSNorm
 
 
+def make_empty_intermediate_tensors(batch_size: int,
+                                    dtype: torch.dtype,
+                                    device: torch.device,
+                                    ) -> IntermediateTensors:
+    return IntermediateTensors({
+        key:
+        torch.zeros((batch_size, hidden_size), dtype=dtype, device=device)
+        for key in keys
+    })
+
+
 def get_max_pixtral_image_tokens(ctx: InputContext):
     tokenizer = cached_get_tokenizer(
         ctx.model_config.tokenizer,
@@ -314,8 +325,8 @@ class NeuronPixtralModel(NeuronBaseModel):
             self.vision_language_adapter = VisionLanguageAdapter(
                 self.vision_config, dim=self.text_config.hidden_size)
     
-            # self.make_empty_intermediate_tensors = (
-            #     self.text_model.make_empty_intermediate_tensors)
+            self.make_empty_intermediate_tensors = (make_empty_intermediate_tensors)
+            
 
 
         def setup_attr_for_model(self, config: InferenceConfig):
