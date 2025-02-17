@@ -279,24 +279,25 @@ class NeuronPixtralModel(NeuronBaseModel):
             super().__init__(self.text_config)
             
             self.config = config
-            self.multimodal_config = multimodal_config
+            # self.multimodal_config = multimodal_config
     
-            dataclass_fields = {field.name for field in fields(config.vision_config)}
+            # dataclass_fields = {field.name for field in fields(config.vision_config)}
             
-            vision_args = {
-                key: value
-                for key, value in self.config.vision_config.to_dict().items()
-                if key in dataclass_fields
-            }
+            # vision_args = {
+            #     key: value
+            #     for key, value in self.config.vision_config.to_dict().items()
+            #     if key in dataclass_fields
+            # }
     
-            if not ("image_break_token_id" in vision_args
-                    and "image_end_token_id" in vision_args):
-                raise ValueError(
-                    "'image_break_token_id' and 'image_end_token_id' not found "
-                    "in the vision_encoder arguments. Please download the latest "
-                    "version of 'params.json' from the model repository.")
+            # if not ("image_break_token_id" in vision_args
+            #         and "image_end_token_id" in vision_args):
+            #     raise ValueError(
+            #         "'image_break_token_id' and 'image_end_token_id' not found "
+            #         "in the vision_encoder arguments. Please download the latest "
+            #         "version of 'params.json' from the model repository.")
+
     
-            self.vision_args = VisionEncoderArgs(**vision_args)
+            self.vision_args = config.vision_config
     
         def init_model(self, config: InferenceConfig):
             self.vision_model = VisionTransformer(self.vision_config)
@@ -311,10 +312,10 @@ class NeuronPixtralModel(NeuronBaseModel):
     
             # self.vision_encoder = VisionTransformer(self.vision_args)
             self.vision_language_adapter = VisionLanguageAdapter(
-                self.vision_args, dim=config.text_config.hidden_size)
+                self.vision_config, dim=self.text_config.hidden_size)
     
-            self.make_empty_intermediate_tensors = (
-                self.language_model.make_empty_intermediate_tensors)
+            # self.make_empty_intermediate_tensors = (
+            #     self.text_model.make_empty_intermediate_tensors)
 
 
         def setup_attr_for_model(self, config: InferenceConfig):

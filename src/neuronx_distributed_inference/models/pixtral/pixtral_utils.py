@@ -286,7 +286,7 @@ class VisionLanguageAdapter(nn.Module):
 
     def __init__(self, args: VisionEncoderArgs, dim: int):
         super().__init__()
-        assert isinstance(args, VisionEncoderArgs)
+        # assert isinstance(args, VisionEncoderArgs)
         self.w_in = nn.Linear(
             args.hidden_size,
             dim,
