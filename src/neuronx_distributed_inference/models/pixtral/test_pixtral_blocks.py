@@ -104,5 +104,6 @@ if __name__ == "__main__":
 
     neuron_pixtral = NeuronPixtralForConditionalGeneration(checkpoint_path, pixtral_config)
 
-    neuron_pixtral.compile(trace_path)
+    # now this breaks on no attention mask due to lack of tokenizer - next step is to add the tokenizer
+    # neuron_pixtral.compile(trace_path)
     

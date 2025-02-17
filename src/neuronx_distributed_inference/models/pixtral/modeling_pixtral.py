@@ -433,6 +433,14 @@ class NeuronPixtralModel(NeuronBaseModel):
                                                     None,
                                                     inputs_embeds,
                                                     kv_caches)
+
+        # from the original
+        # hidden_states = self.language_model.model(input_ids,
+        #                                           positions,
+        #                                           kv_caches,
+        #                                           attn_metadata,
+        #                                           intermediate_tensors,
+        #                                           inputs_embeds=inputs_embeds)
     
             return hidden_states
     

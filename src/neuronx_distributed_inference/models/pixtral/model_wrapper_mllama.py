@@ -153,32 +153,32 @@ class MMDecoderModelInstance(DecoderModelInstance):
             if sp_modify_allowed:
                 self.enable_or_disable_sp(module, sp_enabled, module_full_name)
 
-    def get(self, bucket_rank, **kwargs):
-        """
-        Override DecoderModelInstance.get() to add vision_tokens and vision_key_values aliasing, and for disabling SP at lower buckets.
-        """
+    # def get(self, bucket_rank, **kwargs):
+    #     """
+    #     Override DecoderModelInstance.get() to add vision_tokens and vision_key_values aliasing, and for disabling SP at lower buckets.
+    #     """
 
-        self.module, self.input_output_aliases = super().get(bucket_rank, **kwargs)
+    #     self.module, self.input_output_aliases = super().get(bucket_rank, **kwargs)
 
-        # TODO: This is a hack for disabling sequence parallel at low sequence lengths. Replace this with a more permanent solution in NxDI.
-        if self.neuron_config.sequence_parallel_enabled:
-            # Enable SP at seq len >= 1k, otherwise disable
-            seq_len = self.module.n_positions
-            sp_enabled = bool(seq_len >= 1024)
-            print(f"Setting sp_enabled={sp_enabled} in model for seq len {seq_len}", flush=True)
-            self.enable_or_disable_sp(self.module, sp_enabled=sp_enabled)
+    #     # TODO: This is a hack for disabling sequence parallel at low sequence lengths. Replace this with a more permanent solution in NxDI.
+    #     if self.neuron_config.sequence_parallel_enabled:
+    #         # Enable SP at seq len >= 1k, otherwise disable
+    #         seq_len = self.module.n_positions
+    #         sp_enabled = bool(seq_len >= 1024)
+    #         print(f"Setting sp_enabled={sp_enabled} in model for seq len {seq_len}", flush=True)
+    #         self.enable_or_disable_sp(self.module, sp_enabled=sp_enabled)
 
-        if self.module.kv_mgr is not None:
-            past_key_values = self.module.kv_mgr.past_key_values
-        #     vision_key_values = self.module.kv_mgr.vision_key_values
-        # else:
-            # past_key_values = self.module.past_key_values
-            vision_key_values = []
+    #     if self.module.kv_mgr is not None:
+    #         past_key_values = self.module.kv_mgr.past_key_values
+    #     #     vision_key_values = self.module.kv_mgr.vision_key_values
+    #     # else:
+    #         # past_key_values = self.module.past_key_values
+    #         vision_key_values = []
 
-        num_output_from_trace = 1 + len(past_key_values)
+    #     num_output_from_trace = 1 + len(past_key_values)
 
-        for i in range(len(vision_key_values)):
-            self.input_output_aliases[vision_key_values[i]] = num_output_from_trace
-            num_output_from_trace += 1
+    #     for i in range(len(vision_key_values)):
+    #         self.input_output_aliases[vision_key_values[i]] = num_output_from_trace
+    #         num_output_from_trace += 1
 
-        return self.module, self.input_output_aliases
+    #     return self.module, self.input_output_aliases
