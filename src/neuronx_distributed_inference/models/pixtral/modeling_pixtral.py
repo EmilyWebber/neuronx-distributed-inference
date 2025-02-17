@@ -108,7 +108,7 @@ except ImportError:
 
 from pixtral_utils import VisionTransformer, VisionLanguageAdapter
 
-from modeling_mistral import NeuronLlamaModel
+from modeling_mistral import NeuronLlamaModel, NeuronMistralForCausalLM
 
 from vllm_data import TokenInputs, token_inputs
 
@@ -393,14 +393,20 @@ class NeuronPixtralModel(NeuronBaseModel):
                         self.vision_args.image_end_token_id,
                     ])
             return inputs_embeds
-    
+
+        # attn_metadata: AttentionMetadata, is a vllm parameter, maybe just drop
         def forward(self,
                     input_ids: torch.Tensor,
-                    positions: torch.Tensor,
-                    kv_caches: List[torch.Tensor],
-                    attn_metadata: AttentionMetadata,
-                    intermediate_tensors: Optional[IntermediateTensors] = None,
+                    attention_mask = None, 
+                    positions: torch.Tensor = None,
+                    seq_ids = None, 
+                    sampling_params = None, # maybe send from Neuron config
+                    intermediate_tensors: Optional[IntermediateTensors] = None, # maybe maps to prev_hidden
+                    adapter_ids = None,
+                    accepted_indices = None,
+                    current_length = None,
                     inputs_embeds: Optional[torch.Tensor] = None,
+                    kv_caches: List[torch.Tensor] = None,
                     **kwargs: object,
         ) -> Union[torch.Tensor, IntermediateTensors]:
             """Run forward pass for pixtral.
@@ -415,13 +421,18 @@ class NeuronPixtralModel(NeuronBaseModel):
                 inputs_embeds = self.get_input_embeddings(input_ids,
                                                           vision_embeddings)
                 input_ids = None
-    
+
             hidden_states = self.text_model.forward(input_ids,
-                                                  positions,
-                                                  kv_caches,
-                                                  attn_metadata,
-                                                  intermediate_tensors,
-                                                  inputs_embeds=inputs_embeds)
+                                                    None, 
+                                                    positions,
+                                                    None, 
+                                                    None, # maybe send sampling params from Neuron config
+                                                    intermediate_tensors,
+                                                    None,
+                                                    None,
+                                                    None,
+                                                    inputs_embeds,
+                                                    kv_caches)
     
             return hidden_states
     
