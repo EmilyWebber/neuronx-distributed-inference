@@ -104,5 +104,5 @@ if __name__ == "__main__":
 
     neuron_pixtral = NeuronPixtralForConditionalGeneration(checkpoint_path, pixtral_config)
 
-    neuron_pixtral.compile(trace_path)
+    # neuron_pixtral.compile(trace_path)
     
