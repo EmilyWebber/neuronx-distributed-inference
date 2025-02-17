@@ -79,6 +79,8 @@ if __name__ == '__main__':
         block_size=SEQ_LEN,
         device="neuron",
         tensor_parallel_size=TENSOR_PARALLEL_SIZE,
+        load_format = 'mistral',
+        config_format = 'mistral',
         tokenizer_mode = 'mistral',
         override_neuron_config={
             "context_encoding_buckets": CONTEXT_ENCODING_BUCKETS,
